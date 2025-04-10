@@ -466,7 +466,7 @@ function exportQuestionnaire(id, format) {
                     
                     // Em um sistema real, você enviaria os dados para um servidor
                     // Enviar ao servidor FastAPI
-                    fetch("http://localhost:8000/api/responses", {
+                    fetch("https://enade-g7tqs52e.b4a.run/api/responses", {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json"
