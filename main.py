@@ -293,6 +293,10 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 def read_root():
     return {"message": "Sistema de Questionários ENADE API"}
 
+@app.get("/api/test")
+async def test_api():
+    return {"status": "success", "message": "API está online"}
+
 # Rota para servir o arquivo de questões em JSON diretamente
 @app.get("/questions.json")
 def get_questions_json():
