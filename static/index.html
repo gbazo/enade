@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Questionário do Aluno ENADE</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>Questionário do Aluno ENADE</h1>
+    </header>
+
+    <div class="container">
+        <div class="tabs">
+            <button class="tab active" data-tab="tab-all-questions">Todas as Questões</button>
+            <button class="tab" data-tab="tab-create">Criar Subquestionário</button>
+            <button class="tab" data-tab="tab-saved">Subquestionários Salvos</button>
+            <button class="tab" data-tab="tab-responses">Respostas dos Alunos</button>
+        </div>
+
+        <div id="tab-all-questions" class="tab-content active">
+            <div class="search-bar">
+                <input type="text" id="search-questions" placeholder="Pesquisar questões..." onkeyup="filterQuestions()">
+            </div>
+            
+            <div class="filter-container">
+                <select id="filter-category" class="filter-select" onchange="filterQuestions()">
+                    <option value="">Todas as categorias</option>
+                    <option value="dados-pessoais">Dados Pessoais</option>
+                    <option value="formacao">Formação</option>
+                    <option value="financeiro">Situação Financeira</option>
+                    <option value="academico">Avaliação Acadêmica</option>
+                    <option value="licenciatura">Licenciatura</option>
+                </select>
+                
+                <select id="filter-type" class="filter-select" onchange="filterQuestions()">
+                    <option value="">Todos os tipos</option>
+                    <option value="multiple-choice">Múltipla Escolha</option>
+                    <option value="likert">Escala Likert</option>
+                </select>
+            </div>
+
+            <div class="questions-container" id="all-questions-container">
+                <!-- As questões serão carregadas via JavaScript -->
+            </div>
+        </div>
+
+        <div id="tab-create" class="tab-content">
+            <h2>Criar Novo Subquestionário</h2>
+            <button class="btn" id="btn-open-create-modal">Criar Novo</button>
+            
+            <div id="current-questionnaire-info" style="display: none; margin-top: 20px;">
+                <h3 id="current-questionnaire-title">Título do Questionário</h3>
+                <p id="current-questionnaire-description">Descrição do questionário</p>
+                
+                <div class="quick-select-buttons" style="margin-bottom: 15px;">
+                    <button class="btn" onclick="selectQuestionsLicenciaturas()">Selecionar Todas - Licenciaturas</button>
+                    <button class="btn" style="margin-left: 10px;" onclick="selectQuestionsOutrosCursos()">Selecionar Questões 1-44 - Outros Cursos</button>
+                </div>
+                
+                <div class="search-bar">
+                    <input type="text" id="search-for-adding" placeholder="Pesquisar questões para adicionar..." onkeyup="filterQuestionsForAdding()">
+                </div>
+                
+                <div class="questions-container" id="questions-for-adding" style="height: 300px;">
+                    <!-- As questões para adicionar serão carregadas aqui -->
+                </div>
+                
+                <h3>Questões Selecionadas</h3>
+                <div class="questions-container" id="selected-questions" style="height: 300px;">
+                    <!-- As questões selecionadas serão mostradas aqui -->
+                </div>
+                
+                <div class="btn-group">
+                    <button class="btn" id="btn-save-questionnaire">Salvar Subquestionário</button>
+                    <button class="btn btn-secondary" id="btn-cancel-creation">Cancelar</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-saved" class="tab-content">
+            <h2>Subquestionários Salvos</h2>
+            <div class="questionnaire-list" id="saved-questionnaires">
+                <!-- Os questionários salvos serão exibidos aqui -->
+            </div>
+        </div>
+        
+        <div id="tab-responses" class="tab-content">
+            <h2>Respostas dos Alunos</h2>
+            
+            <div class="filter-container">
+                <select id="filter-questionnaire" class="filter-select">
+                    <option value="">Todos os Subquestionários</option>
+                    <!-- Opções serão preenchidas via JavaScript -->
+                </select>
+                
+                <input type="text" id="search-student" placeholder="Buscar por nome ou matrícula..." 
+                    class="search-bar" style="max-width: 300px; margin-left: 10px;">
+                
+                <button class="btn" onclick="loadResponses()">Buscar</button>
+            </div>
+            
+            <div id="no-responses" style="display: none; margin: 20px 0; padding: 15px; background-color: #f8f9fa; border-radius: 5px; text-align: center;">
+                <p>Nenhuma resposta encontrada. As respostas aparecem aqui quando os alunos preenchem os questionários exportados.</p>
+            </div>
+            
+            <div id="responses-container" style="margin-top: 20px;">
+                <!-- As respostas serão exibidas aqui -->
+            </div>
+            
+            <!-- Template para exibição de respostas -->
+            <template id="response-template">
+                <div class="questionnaire-item">
+                    <div>
+                        <div class="questionnaire-title">Aluno: <span class="student-name"></span></div>
+                        <div>Matrícula: <span class="student-id"></span></div>
+                        <div>Questionário: <span class="questionnaire-name"></span></div>
+                        <div>Data: <span class="submission-date"></span></div>
+                    </div>
+                    <div>
+                        <button class="btn" onclick="viewResponse(this.getAttribute('data-id'))">Ver Detalhes</button>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- Modal para criar novo questionário -->
+    <div id="create-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Criar Novo Subquestionário</h2>
+            <form id="form-questionnaire">
+                <div class="form-group">
+                    <label for="questionnaire-title">Título:</label>
+                    <input type="text" id="questionnaire-title" required>
+                </div>
+                <div class="form-group">
+                    <label for="questionnaire-description">Descrição:</label>
+                    <textarea id="questionnaire-description" rows="3"></textarea>
+                </div>
+                <button type="submit" class="btn">Continuar</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal para visualizar questionário -->
+    <div id="view-modal" class="modal">
+        <div class="modal-content" style="width: 80%; max-width: 800px;">
+            <span class="close">&times;</span>
+            <h2 id="view-questionnaire-title"></h2>
+            <p id="view-questionnaire-description"></p>
+            <div class="questions-container" id="view-questions" style="max-height: 500px; overflow-y: auto;">
+                <!-- As questões do questionário serão exibidas aqui -->
+            </div>
+            <div class="btn-group">
+                <button class="btn" id="btn-export-pdf">Exportar como PDF</button>
+                <button class="btn" id="btn-export-html">Exportar como HTML</button>
+                <button class="btn btn-secondary" id="btn-delete-questionnaire">Excluir Questionário</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal para visualizar resposta do aluno -->
+    <div id="response-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Respostas do Aluno</h2>
+            
+            <div style="margin-bottom: 20px;">
+                <div><strong>Aluno:</strong> <span id="response-student-name"></span></div>
+                <div><strong>Matrícula:</strong> <span id="response-student-id"></span></div>
+                <div><strong>E-mail:</strong> <span id="response-student-email"></span></div>
+                <div><strong>Questionário:</strong> <span id="response-questionnaire-name"></span></div>
+                <div><strong>Data de Envio:</strong> <span id="response-submission-date"></span></div>
+            </div>
+            
+            <h3>Respostas:</h3>
+            <div class="questions-container" id="response-answers">
+                <!-- As respostas serão exibidas aqui -->
+            </div>
+            
+            <div class="btn-group">
+                <button class="btn" id="btn-export-response">Exportar Respostas</button>
+                <button class="btn btn-secondary" id="btn-delete-response">Excluir Resposta</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
