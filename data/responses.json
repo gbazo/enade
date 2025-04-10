@@ -1,0 +1,294 @@
+[
+  {
+    "studentName": "Teste",
+    "studentId": "123",
+    "studentEmail": "teste",
+    "questionnaire": "Teste",
+    "submissionDate": "2025-04-02T17:20:13.984Z",
+    "responses": [
+      {
+        "question": "1. Qual o seu estado civil?",
+        "answer": "A) Solteiro(a)"
+      },
+      {
+        "question": "2. Você tem filhos?",
+        "answer": "A) Não"
+      },
+      {
+        "question": "3. Qual é a sua cor ou raça?",
+        "answer": "A) Branca"
+      },
+      {
+        "question": "4. Você tem alguma deficiência, transtorno global do desenvolvimento ou altas habilidades? (Você pode marcar quantas alternativas considerar necessárias)",
+        "answer": "A) Não possuo"
+      },
+      {
+        "question": "5. Alguém em sua família concluiu um curso superior?",
+        "answer": "A) Sim"
+      }
+    ]
+  },
+  {
+    "studentName": "Teste 2",
+    "studentId": "23456",
+    "studentEmail": "teste2",
+    "questionnaire": "Teste",
+    "submissionDate": "2025-04-02T17:21:09.299Z",
+    "responses": [
+      {
+        "question": "1. Qual o seu estado civil?",
+        "answer": "B) Casado (a) ou vivendo em união estável"
+      },
+      {
+        "question": "2. Você tem filhos?",
+        "answer": "B) Sim, 1 filho"
+      },
+      {
+        "question": "3. Qual é a sua cor ou raça?",
+        "answer": "B) Preta"
+      },
+      {
+        "question": "4. Você tem alguma deficiência, transtorno global do desenvolvimento ou altas habilidades? (Você pode marcar quantas alternativas considerar necessárias)",
+        "answer": "C) Baixa Visão"
+      },
+      {
+        "question": "5. Alguém em sua família concluiu um curso superior?",
+        "answer": "B) Não"
+      }
+    ]
+  },
+  {
+    "studentName": "Gabriel",
+    "studentId": "112233",
+    "studentEmail": "gabriel@email.com",
+    "questionnaire": "Teste",
+    "submissionDate": "2025-04-02T22:46:05.425Z",
+    "responses": [
+      {
+        "question": "1. Qual o seu estado civil?",
+        "answer": "A) Solteiro(a)"
+      },
+      {
+        "question": "2. Você tem filhos?",
+        "answer": "A) Não"
+      },
+      {
+        "question": "3. Qual é a sua cor ou raça?",
+        "answer": "A) Branca"
+      },
+      {
+        "question": "4. Você tem alguma deficiência, transtorno global do desenvolvimento ou altas habilidades? (Você pode marcar quantas alternativas considerar necessárias)",
+        "answer": "A) Não possuo"
+      },
+      {
+        "question": "5. Alguém em sua família concluiu um curso superior?",
+        "answer": "A) Sim"
+      },
+      {
+        "question": "6. Até que etapa de escolarização sua mãe concluiu?",
+        "answer": "A) Nenhuma"
+      },
+      {
+        "question": "7. Até que etapa de escolarização seu pai concluiu?",
+        "answer": "A) Nenhuma"
+      },
+      {
+        "question": "8. Qual alternativa a seguir melhor descreve sua situação financeira (incluindo bolsas)?",
+        "answer": "A) Não tenho renda e meus gastos são financiados por programas governamentais"
+      },
+      {
+        "question": "9. Qual a renda total de sua família, incluindo seus rendimentos?",
+        "answer": "A) Até 1,5 salário mínimo (até R$ 2.118,00)"
+      },
+      {
+        "question": "10. Qual alternativa melhor descreve a sua situação de trabalho durante a maior parte do curso? (Excluindo trabalhos acadêmicos e bolsas).",
+        "answer": "A) Não trabalhei durante o curso"
+      }
+    ]
+  },
+  {
+    "studentName": "Felipe",
+    "studentId": "334455",
+    "studentEmail": "felipe@barao.com",
+    "questionnaire": "Questionário Aluno DG",
+    "submissionDate": "2025-04-04T18:51:41.878Z",
+    "responses": [
+      {
+        "question": "1. Qual o seu estado civil?",
+        "answer": "A) Solteiro(a)"
+      },
+      {
+        "question": "2. Você tem filhos?",
+        "answer": "A) Não"
+      },
+      {
+        "question": "3. Qual é a sua cor ou raça?",
+        "answer": "A) Branca"
+      },
+      {
+        "question": "4. Você tem alguma deficiência, transtorno global do desenvolvimento ou altas habilidades? (Você pode marcar quantas alternativas considerar necessárias)",
+        "answer": "A) Não possuo"
+      },
+      {
+        "question": "5. Alguém em sua família concluiu um curso superior?",
+        "answer": "A) Sim"
+      },
+      {
+        "question": "6. Até que etapa de escolarização sua mãe concluiu?",
+        "answer": "A) Nenhuma"
+      },
+      {
+        "question": "7. Até que etapa de escolarização seu pai concluiu?",
+        "answer": "A) Nenhuma"
+      },
+      {
+        "question": "8. Qual alternativa a seguir melhor descreve sua situação financeira (incluindo bolsas)?",
+        "answer": "A) Não tenho renda e meus gastos são financiados por programas governamentais"
+      },
+      {
+        "question": "9. Qual a renda total de sua família, incluindo seus rendimentos?",
+        "answer": "A) Até 1,5 salário mínimo (até R$ 2.118,00)"
+      },
+      {
+        "question": "10. Qual alternativa melhor descreve a sua situação de trabalho durante a maior parte do curso? (Excluindo trabalhos acadêmicos e bolsas).",
+        "answer": "A) Não trabalhei durante o curso"
+      },
+      {
+        "question": "11. Seu ingresso no curso de graduação se deu por meio de políticas de ação afirmativa ou inclusão social?",
+        "answer": "A) Não"
+      },
+      {
+        "question": "12. Qual a principal razão para você ter escolhido a sua instituição de educação superior?",
+        "answer": "A) Gratuidade"
+      },
+      {
+        "question": "13. Que tipo de bolsa de estudos ou financiamento do curso você recebeu para custear todas ou a maior parte das mensalidades?",
+        "answer": "A) Nenhum, pois meu curso é gratuito"
+      },
+      {
+        "question": "14. Algum fator dificultou sua permanência no ensino superior?",
+        "answer": "A) Não tive dificuldades"
+      },
+      {
+        "question": "15. Ao longo da sua trajetória acadêmica, você recebeu algum tipo de auxílio permanência?",
+        "answer": "A) Nenhum"
+      },
+      {
+        "question": "16. Ao longo da sua trajetória acadêmica, você recebeu algum tipo de bolsa acadêmica? (Você pode marcar quantas alternativas considerar necessário)",
+        "answer": "A) Nenhum"
+      },
+      {
+        "question": "17. Quantas horas por semana, aproximadamente, você dedicou aos estudos, excetuando as horas de aula?",
+        "answer": "A) Nenhuma, apenas assisto às aulas"
+      },
+      {
+        "question": "18. Você pretende exercer o magistério após o término do curso?",
+        "answer": "A) Sim, como atuação profissional principal"
+      },
+      {
+        "question": "19. Onde você pretende atuar daqui a cinco anos?",
+        "answer": "A) Em escola pública, como professor"
+      },
+      {
+        "question": "20. Foram oferecidas oportunidades para os estudantes participarem de programas, projetos ou atividades de extensão universitária.",
+        "answer": "1"
+      },
+      {
+        "question": "21. Foram oferecidas oportunidades para os estudantes participarem de projetos de iniciação científica e/ou de atividades que estimularam a investigação acadêmica.",
+        "answer": "1"
+      },
+      {
+        "question": "22. As atividades realizadas durante seu trabalho de conclusão de curso contribuíram para qualificar sua formação profissional.",
+        "answer": "1"
+      },
+      {
+        "question": "23. As relações professor-aluno ao longo do curso foram positivas, estimulando os estudantes a estudar e aprender.",
+        "answer": "1"
+      },
+      {
+        "question": "24. Os professores apresentaram e discutiram os planos de ensino/curso das disciplinas com os estudantes.",
+        "answer": "1"
+      },
+      {
+        "question": "25. As referências bibliográficas indicadas pelos professores contribuíram para seus estudos e licenciatura.",
+        "answer": "1"
+      },
+      {
+        "question": "26. As avaliações da aprendizagem realizadas durante o curso foram compatíveis com os conteúdos ou temas trabalhados pelos professores.",
+        "answer": "1"
+      },
+      {
+        "question": "27. Os professores demonstraram domínio dos conteúdos abordados nas disciplinas.",
+        "answer": "1"
+      },
+      {
+        "question": "28. Os professores utilizaram estratégias e instrumentos de avaliação diversificados (provas, seminários, trabalhos em grupo, portfólio, autoavaliação, etc).",
+        "answer": "1"
+      },
+      {
+        "question": "29. Os professores ofereceram devolutivas das avaliações (comentários, explicações, sugestões para melhoria) que auxiliaram os estudantes a avançar em suas licenciatura.",
+        "answer": "1"
+      },
+      {
+        "question": "30. Os professores estimularam a participação ativa dos estudantes durante as aulas (por meio de atividades em grupo, discussões, seminários, etc) não se limitando às aulas expositivas.",
+        "answer": "1"
+      },
+      {
+        "question": "31. O curso disponibilizou quantidade suficiente de professores ou tutores para auxiliar os estudantes nas disciplinas a distância.",
+        "answer": "1"
+      },
+      {
+        "question": "32. Nas disciplinas a distância, houve interação ao vivo (presencial ou síncrona, mediada por tecnologia) entre os estudantes e o professor.",
+        "answer": "1"
+      },
+      {
+        "question": "33. Foram oferecidas oportunidades para os estudantes superarem dificuldades relacionadas ao processo de formação.",
+        "answer": "1"
+      },
+      {
+        "question": "34. A coordenação do curso esteve disponível para orientação acadêmica dos estudantes.",
+        "answer": "1"
+      },
+      {
+        "question": "35. O curso favoreceu a articulação do conhecimento teórico com atividades práticas.",
+        "answer": "1"
+      },
+      {
+        "question": "36. O curso propiciou acesso a conhecimentos atualizados e/ou contemporâneos em sua área de formação.",
+        "answer": "1"
+      },
+      {
+        "question": "37. As disciplinas cursadas contribuíram para sua formação como profissional.",
+        "answer": "1"
+      },
+      {
+        "question": "38. As metodologias de ensino utilizadas no curso desafiaram você a se posicionar mais criticamente diante do conhecimento.",
+        "answer": "1"
+      },
+      {
+        "question": "39. Os estudantes participaram de avaliações periódicas das condições de formação (disciplinas, atuação dos professores, infraestrutura).",
+        "answer": "1"
+      },
+      {
+        "question": "40. O Ambiente Virtual de Aprendizagem - AVA (Moodle, Google Classroom, etc.) apresentou materiais, recursos e tecnologias apropriados para o desenvolvimento das disciplinas.",
+        "answer": "1"
+      },
+      {
+        "question": "41. O curso proporcionou condições de acesso adequado às bibliografias indicadas nas disciplinas, de forma física ou virtual.",
+        "answer": "1"
+      },
+      {
+        "question": "42. As salas de aula apresentaram tamanho, mobiliário e recursos tecnológicos adequados.",
+        "answer": "1"
+      },
+      {
+        "question": "43. As condições de infraestrutura dos polos foram adequadas para os encontros presenciais (não se aplica para cursos presenciais).",
+        "answer": "1"
+      },
+      {
+        "question": "44. Os ambientes e equipamentos destinados às aulas práticas foram adequados ao curso e à quantidade de estudantes.",
+        "answer": "1"
+      }
+    ]
+  }
+]
