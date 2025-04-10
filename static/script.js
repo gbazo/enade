@@ -306,6 +306,23 @@ function exportQuestionnaire(id, format) {
             <h1>${questionnaire.title}</h1>
             <p>${questionnaire.description || ''}</p>
             
+            <div id="connection-modal" style="display: block; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.6);">
+              <div style="background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 500px; border-radius: 5px; text-align: center;">
+                <h3 style="margin-top: 0;">Estabelecendo conexão com o servidor</h3>
+                <p id="connection-status">Verificando se o serviço está disponível...</p>
+                <div id="connection-loader" style="border: 5px solid #f3f3f3; border-top: 5px solid #3498db; border-radius: 50%; width: 50px; height: 50px; animation: spin 2s linear infinite; margin: 20px auto;"></div>
+                <p id="connection-message">Por favor, aguarde. Isso pode levar alguns segundos.</p>
+                <button id="connection-retry" style="display: none; padding: 10px 20px; background-color: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer; margin-top: 15px;">Tentar novamente</button>
+              </div>
+            </div>
+
+            <style>
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+            </style>
+            
             <div class="intro-message">
                 <p><strong>Caro(a) estudante,</strong></p>
                 <p>Este questionário constitui um instrumento importante para compor o perfil dos participantes do Enade e o contexto de seus processos formativos. Além disso, é uma oportunidade para você avaliar diversos aspectos do seu curso e da sua formação.</p>
@@ -387,6 +404,73 @@ function exportQuestionnaire(id, format) {
             <div id="result-message" style="display: none; margin-top: 20px; padding: 15px; border-radius: 5px;"></div>
             
             <script>
+                // Código para verificar a conexão com o servidor antes de liberar o questionário
+                document.addEventListener('DOMContentLoaded', function() {
+                  const connectionModal = document.getElementById('connection-modal');
+                  const connectionStatus = document.getElementById('connection-status');
+                  const connectionMessage = document.getElementById('connection-message');
+                  const connectionRetry = document.getElementById('connection-retry');
+                  const connectionLoader = document.getElementById('connection-loader');
+                  
+                  // Desabilitar formulário até verificar conexão
+                  const questionForm = document.getElementById('questions');
+                  const studentInfo = document.getElementById('student-info');
+                  const submitBtn = document.getElementById('submit-btn');
+                  
+                  if (questionForm) questionForm.style.pointerEvents = 'none';
+                  if (studentInfo) studentInfo.style.pointerEvents = 'none';
+                  if (submitBtn) submitBtn.style.pointerEvents = 'none';
+                  
+                  // Função para verificar a conexão
+                  function checkConnection() {
+                    connectionStatus.textContent = 'Verificando se o serviço está disponível...';
+                    connectionLoader.style.display = 'block';
+                    connectionRetry.style.display = 'none';
+                    
+                    // Ping o servidor para verificar se está online
+                    fetch('https://enade-g7tqs52e.b4a.run/api/test', {
+                      method: 'GET',
+                      headers: {
+                        'Content-Type': 'application/json'
+                      }
+                    })
+                    .then(response => {
+                      if (response.ok) {
+                        return response.json();
+                      }
+                      throw new Error('Servidor não está respondendo corretamente');
+                    })
+                    .then(data => {
+                      connectionStatus.textContent = 'Conexão estabelecida!';
+                      connectionMessage.textContent = 'O serviço está online. Você pode preencher o questionário agora.';
+                      connectionLoader.style.display = 'none';
+                      
+                      // Aguarda 2 segundos e fecha o modal
+                      setTimeout(() => {
+                        connectionModal.style.display = 'none';
+                        
+                        // Habilitar formulário
+                        if (questionForm) questionForm.style.pointerEvents = 'auto';
+                        if (studentInfo) studentInfo.style.pointerEvents = 'auto';
+                        if (submitBtn) submitBtn.style.pointerEvents = 'auto';
+                      }, 2000);
+                    })
+                    .catch(error => {
+                      console.error('Erro ao verificar conexão:', error);
+                      connectionStatus.textContent = 'Não foi possível conectar ao servidor';
+                      connectionMessage.innerHTML = 'O serviço parece estar inativo. Isso pode acontecer se o servidor estiver em modo de hibernação.<br><strong>Sugestão:</strong> Acesse <a href="https://enade-g7tqs52e.b4a.run" target="_blank">https://enade-g7tqs52e.b4a.run</a> para "acordar" o servidor antes de continuar.';
+                      connectionLoader.style.display = 'none';
+                      connectionRetry.style.display = 'block';
+                    });
+                  }
+                  
+                  // Configurar botão de retry
+                  connectionRetry.addEventListener('click', checkConnection);
+                  
+                  // Iniciar verificação
+                  checkConnection();
+                });
+
                 // Validar o formulário antes de enviar
                 document.getElementById('submit-btn').addEventListener('click', function() {
                     const studentName = document.getElementById('student-name').value.trim();
