@@ -73,16 +73,44 @@ index_path = os.path.join("static", "index.html")
 if not os.path.exists(index_path):
     print("AVISO: index.html não encontrado na pasta static.")
 
-# Função para carregar questões
-def load_questions():
-    if not os.path.exists(QUESTIONS_FILE):
-        # Criar arquivo de questões se não existir
-        with open(QUESTIONS_FILE, "w", encoding="utf-8") as f:
-            json.dump(extract_questions_from_pdf(), f, ensure_ascii=False, indent=2)
-    
-    with open(QUESTIONS_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+# Modifique esta parte no seu código
+# Garantir que os diretórios existem
+try:
+    os.makedirs(DATA_DIR, exist_ok=True)
+    os.makedirs("static", exist_ok=True)
+except Exception as e:
+    print(f"AVISO: Não foi possível criar diretórios: {e}")
 
+# E substitua as chamadas de acesso a arquivos por versões seguras
+def load_questions():
+    """
+    Carrega questões, criando o arquivo se não existir.
+    Preserva questões existentes.
+    
+    Returns:
+        list: Lista de questões
+    """
+    try:
+        if not os.path.exists(QUESTIONS_FILE):
+            # Se o arquivo não existe, criar com questões de exemplo
+            questions = extract_questions_from_pdf()
+            try:
+                with open(QUESTIONS_FILE, "w", encoding="utf-8") as f:
+                    json.dump(questions, f, ensure_ascii=False, indent=2)
+            except Exception as e:
+                print(f"Erro ao salvar questões: {e}")
+                return questions
+            return questions
+        
+        # Ler questões existentes
+        with open(QUESTIONS_FILE, "r", encoding="utf-8") as f:
+            existing_questions = json.load(f)
+        
+        return existing_questions
+    except Exception as e:
+        print(f"Erro ao carregar questões: {e}")
+        # Retornar dados vazios em caso de erro
+        return []
 # Função para carregar questionários
 def load_questionnaires():
     if not os.path.exists(QUESTIONNAIRES_FILE):
