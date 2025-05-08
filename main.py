@@ -8,29 +8,21 @@ import json
 import os
 import traceback
 from datetime import datetime
-import parse
-from parse_rest.connection import register
-from parse_rest.datatypes import Object
-from parse_rest.query import QueryResourceDoesNotExist
+import requests
 
 app = FastAPI(title="Sistema de Questionários ENADE")
 
 # Configurações do Parse Server
-APPLICATION_ID = os.environ.get("s7pKPlnBzfYSLKpV2MvxN6ahLQRreBVjRKGmXhaD")
-REST_API_KEY = os.environ.get("s7pKPlnBzfYSLKpV2MvxN6ahLQRreBVjRKGmXhaD")
+PARSE_APP_ID = os.environ.get("PARSE_APP_ID", "")
+PARSE_REST_API_KEY = os.environ.get("PARSE_REST_API_KEY", "")
+PARSE_SERVER_URL = os.environ.get("PARSE_SERVER_URL", "https://parseapi.back4app.com")
 
-# Registrar com o Parse
-register(APPLICATION_ID, REST_API_KEY)
-
-# Definir classes do Parse
-class ParseQuestion(Object):
-    pass
-
-class ParseQuestionnaire(Object):
-    pass
-
-class ParseResponse(Object):
-    pass
+# Headers para requisições ao Parse Server
+PARSE_HEADERS = {
+    "X-Parse-Application-Id": PARSE_APP_ID,
+    "X-Parse-REST-API-Key": PARSE_REST_API_KEY,
+    "Content-Type": "application/json"
+}
 
 # Middleware para tratar exceções e imprimir erros detalhados
 @app.middleware("http")
@@ -185,7 +177,7 @@ def extract_questions_from_pdf(existing_questions=None):
     
     return questions
 
-# Funções CRUD usando Parse Server
+# Funções CRUD usando Parse REST API
 
 def load_questions():
     """
@@ -197,29 +189,40 @@ def load_questions():
     """
     try:
         # Buscar todas as questões do Parse Server
-        questions_query = ParseQuestion.Query.all().order_by("number")
-        parse_questions = list(questions_query)
+        url = f"{PARSE_SERVER_URL}/classes/Question"
+        params = {
+            "order": "number",
+            "limit": 1000  # Ajustar conforme necessário
+        }
         
-        # Converter para o formato esperado pelo frontend
-        questions = []
-        for pq in parse_questions:
-            question = {
-                "id": pq.question_id,
-                "number": pq.number,
-                "text": pq.text,
-                "type": pq.type,
-                "category": pq.category,
-                "options": json.loads(pq.options)
-            }
-            questions.append(question)
+        response = requests.get(url, headers=PARSE_HEADERS, params=params)
         
-        # Se não houver questões, criar questões de exemplo
-        if not questions:
-            print("Nenhuma questão encontrada. Criando questões de exemplo...")
-            questions = extract_questions_from_pdf()
-            save_questions(questions)
-        
-        return questions
+        if response.status_code == 200:
+            result = response.json()
+            
+            # Converter para o formato esperado pelo frontend
+            questions = []
+            for item in result.get("results", []):
+                question = {
+                    "id": item.get("questionId"),
+                    "number": item.get("number"),
+                    "text": item.get("text"),
+                    "type": item.get("type"),
+                    "category": item.get("category"),
+                    "options": item.get("options", [])
+                }
+                questions.append(question)
+            
+            # Se não houver questões, criar questões de exemplo
+            if not questions:
+                print("Nenhuma questão encontrada. Criando questões de exemplo...")
+                questions = extract_questions_from_pdf()
+                save_questions(questions)
+            
+            return questions
+        else:
+            print(f"Erro ao carregar questões: {response.status_code} - {response.text}")
+            return extract_questions_from_pdf()
     except Exception as e:
         print(f"Erro ao carregar questões: {e}")
         # Em caso de erro, criar questões de exemplo
@@ -232,26 +235,47 @@ def save_questions(questions):
     try:
         for question in questions:
             # Verificar se a questão já existe
-            try:
-                pq = ParseQuestion.Query.get(question_id=question["id"])
-                # Atualizar se existir
-                pq.number = question["number"]
-                pq.text = question["text"]
-                pq.type = question["type"]
-                pq.category = question["category"]
-                pq.options = json.dumps(question["options"])
-                pq.save()
-            except QueryResourceDoesNotExist:
+            query_url = f"{PARSE_SERVER_URL}/classes/Question"
+            params = {
+                "where": json.dumps({"questionId": question["id"]})
+            }
+            
+            response = requests.get(query_url, headers=PARSE_HEADERS, params=params)
+            
+            if response.status_code == 200 and len(response.json().get("results", [])) > 0:
+                # Atualizar questão existente
+                object_id = response.json()["results"][0]["objectId"]
+                update_url = f"{PARSE_SERVER_URL}/classes/Question/{object_id}"
+                
+                update_data = {
+                    "number": question["number"],
+                    "text": question["text"],
+                    "type": question["type"],
+                    "category": question["category"],
+                    "options": question["options"]
+                }
+                
+                update_response = requests.put(update_url, headers=PARSE_HEADERS, data=json.dumps(update_data))
+                
+                if update_response.status_code != 200:
+                    print(f"Erro ao atualizar questão: {update_response.status_code} - {update_response.text}")
+            else:
                 # Criar nova questão
-                pq = ParseQuestion(
-                    question_id=question["id"],
-                    number=question["number"],
-                    text=question["text"],
-                    type=question["type"],
-                    category=question["category"],
-                    options=json.dumps(question["options"])
-                )
-                pq.save()
+                create_url = f"{PARSE_SERVER_URL}/classes/Question"
+                
+                create_data = {
+                    "questionId": question["id"],
+                    "number": question["number"],
+                    "text": question["text"],
+                    "type": question["type"],
+                    "category": question["category"],
+                    "options": question["options"]
+                }
+                
+                create_response = requests.post(create_url, headers=PARSE_HEADERS, data=json.dumps(create_data))
+                
+                if create_response.status_code != 201:
+                    print(f"Erro ao criar questão: {create_response.status_code} - {create_response.text}")
         
         return True
     except Exception as e:
@@ -263,22 +287,28 @@ def load_questionnaires():
     Carrega todos os questionários do Parse Server
     """
     try:
-        questionnaires_query = ParseQuestionnaire.Query.all()
-        parse_questionnaires = list(questionnaires_query)
+        url = f"{PARSE_SERVER_URL}/classes/Questionnaire"
+        response = requests.get(url, headers=PARSE_HEADERS)
         
-        # Converter para o formato esperado pelo frontend
-        questionnaires = []
-        for pq in parse_questionnaires:
-            questionnaire = {
-                "id": pq.questionnaire_id,
-                "title": pq.title,
-                "description": pq.description,
-                "question_ids": json.loads(pq.question_ids),
-                "created_at": pq.created_at.isoformat() if hasattr(pq, 'created_at') else datetime.now().isoformat()
-            }
-            questionnaires.append(questionnaire)
-        
-        return questionnaires
+        if response.status_code == 200:
+            result = response.json()
+            
+            # Converter para o formato esperado pelo frontend
+            questionnaires = []
+            for item in result.get("results", []):
+                questionnaire = {
+                    "id": item.get("questionnaireId"),
+                    "title": item.get("title"),
+                    "description": item.get("description"),
+                    "question_ids": item.get("questionIds", []),
+                    "created_at": item.get("createdAt", datetime.now().isoformat())
+                }
+                questionnaires.append(questionnaire)
+            
+            return questionnaires
+        else:
+            print(f"Erro ao carregar questionários: {response.status_code} - {response.text}")
+            return []
     except Exception as e:
         print(f"Erro ao carregar questionários: {e}")
         return []
@@ -289,23 +319,46 @@ def save_questionnaire(questionnaire_data):
     """
     try:
         # Verificar se o questionário já existe
-        try:
-            pq = ParseQuestionnaire.Query.get(questionnaire_id=questionnaire_data["id"])
-            # Atualizar se existir
-            pq.title = questionnaire_data["title"]
-            pq.description = questionnaire_data["description"]
-            pq.question_ids = json.dumps(questionnaire_data["question_ids"])
-            pq.save()
-        except QueryResourceDoesNotExist:
+        query_url = f"{PARSE_SERVER_URL}/classes/Questionnaire"
+        params = {
+            "where": json.dumps({"questionnaireId": questionnaire_data["id"]})
+        }
+        
+        response = requests.get(query_url, headers=PARSE_HEADERS, params=params)
+        
+        if response.status_code == 200 and len(response.json().get("results", [])) > 0:
+            # Atualizar questionário existente
+            object_id = response.json()["results"][0]["objectId"]
+            update_url = f"{PARSE_SERVER_URL}/classes/Questionnaire/{object_id}"
+            
+            update_data = {
+                "title": questionnaire_data["title"],
+                "description": questionnaire_data["description"],
+                "questionIds": questionnaire_data["question_ids"]
+            }
+            
+            update_response = requests.put(update_url, headers=PARSE_HEADERS, data=json.dumps(update_data))
+            
+            if update_response.status_code != 200:
+                print(f"Erro ao atualizar questionário: {update_response.status_code} - {update_response.text}")
+                return False
+        else:
             # Criar novo questionário
-            pq = ParseQuestionnaire(
-                questionnaire_id=questionnaire_data["id"],
-                title=questionnaire_data["title"],
-                description=questionnaire_data["description"],
-                question_ids=json.dumps(questionnaire_data["question_ids"]),
-                created_at=datetime.now()
-            )
-            pq.save()
+            create_url = f"{PARSE_SERVER_URL}/classes/Questionnaire"
+            
+            create_data = {
+                "questionnaireId": questionnaire_data["id"],
+                "title": questionnaire_data["title"],
+                "description": questionnaire_data["description"],
+                "questionIds": questionnaire_data["question_ids"],
+                "createdAt": questionnaire_data.get("created_at", datetime.now().isoformat())
+            }
+            
+            create_response = requests.post(create_url, headers=PARSE_HEADERS, data=json.dumps(create_data))
+            
+            if create_response.status_code != 201:
+                print(f"Erro ao criar questionário: {create_response.status_code} - {create_response.text}")
+                return False
         
         return True
     except Exception as e:
@@ -317,11 +370,28 @@ def delete_questionnaire(questionnaire_id):
     Remove um questionário do Parse Server
     """
     try:
-        try:
-            pq = ParseQuestionnaire.Query.get(questionnaire_id=questionnaire_id)
-            pq.delete()
+        # Encontrar o objectId do questionário
+        query_url = f"{PARSE_SERVER_URL}/classes/Questionnaire"
+        params = {
+            "where": json.dumps({"questionnaireId": questionnaire_id})
+        }
+        
+        response = requests.get(query_url, headers=PARSE_HEADERS, params=params)
+        
+        if response.status_code == 200 and len(response.json().get("results", [])) > 0:
+            object_id = response.json()["results"][0]["objectId"]
+            
+            # Excluir o questionário
+            delete_url = f"{PARSE_SERVER_URL}/classes/Questionnaire/{object_id}"
+            delete_response = requests.delete(delete_url, headers=PARSE_HEADERS)
+            
+            if delete_response.status_code != 200:
+                print(f"Erro ao excluir questionário: {delete_response.status_code} - {delete_response.text}")
+                return False
+            
             return True
-        except QueryResourceDoesNotExist:
+        else:
+            print("Questionário não encontrado")
             return False
     except Exception as e:
         print(f"Erro ao excluir questionário: {e}")
@@ -332,23 +402,34 @@ def load_responses():
     Carrega todas as respostas do Parse Server
     """
     try:
-        responses_query = ParseResponse.Query.all().descending("created_at")
-        parse_responses = list(responses_query)
+        url = f"{PARSE_SERVER_URL}/classes/Response"
+        params = {
+            "order": "-createdAt",
+            "limit": 1000  # Ajustar conforme necessário
+        }
         
-        # Converter para o formato esperado pelo frontend
-        responses = []
-        for pr in parse_responses:
-            response = {
-                "studentName": pr.studentName,
-                "studentId": pr.studentId,
-                "studentEmail": pr.studentEmail if hasattr(pr, 'studentEmail') else "",
-                "questionnaire": pr.questionnaire,
-                "submissionDate": pr.created_at.isoformat() if hasattr(pr, 'created_at') else datetime.now().isoformat(),
-                "responses": json.loads(pr.responses)
-            }
-            responses.append(response)
+        response = requests.get(url, headers=PARSE_HEADERS, params=params)
         
-        return responses
+        if response.status_code == 200:
+            result = response.json()
+            
+            # Converter para o formato esperado pelo frontend
+            responses = []
+            for item in result.get("results", []):
+                resp = {
+                    "studentName": item.get("studentName", ""),
+                    "studentId": item.get("studentId", ""),
+                    "studentEmail": item.get("studentEmail", ""),
+                    "questionnaire": item.get("questionnaire", ""),
+                    "submissionDate": item.get("createdAt", datetime.now().isoformat()),
+                    "responses": item.get("responses", [])
+                }
+                responses.append(resp)
+            
+            return responses
+        else:
+            print(f"Erro ao carregar respostas: {response.status_code} - {response.text}")
+            return []
     except Exception as e:
         print(f"Erro ao carregar respostas: {e}")
         return []
@@ -359,14 +440,21 @@ def save_response(response_data):
     """
     try:
         # Criar nova resposta
-        pr = ParseResponse(
-            studentName=response_data.get("studentName", ""),
-            studentId=response_data.get("studentId", ""),
-            studentEmail=response_data.get("studentEmail", ""),
-            questionnaire=response_data.get("questionnaire", ""),
-            responses=json.dumps(response_data.get("responses", []))
-        )
-        pr.save()
+        url = f"{PARSE_SERVER_URL}/classes/Response"
+        
+        data = {
+            "studentName": response_data.get("studentName", ""),
+            "studentId": response_data.get("studentId", ""),
+            "studentEmail": response_data.get("studentEmail", ""),
+            "questionnaire": response_data.get("questionnaire", ""),
+            "responses": response_data.get("responses", [])
+        }
+        
+        response = requests.post(url, headers=PARSE_HEADERS, data=json.dumps(data))
+        
+        if response.status_code != 201:
+            print(f"Erro ao salvar resposta: {response.status_code} - {response.text}")
+            return False
         
         return True
     except Exception as e:
@@ -392,22 +480,44 @@ def get_status():
     Endpoint de status para verificar se a API está funcionando
     """
     try:
-        # Verificar conexão com o Parse Server
-        question_count = ParseQuestion.Query.all().count()
-        questionnaire_count = ParseQuestionnaire.Query.all().count()
-        response_count = ParseResponse.Query.all().count()
+        # Verificar se as credenciais do Parse Server estão configuradas
+        if not PARSE_APP_ID or not PARSE_REST_API_KEY:
+            return {
+                "status": "warning",
+                "message": "Parse Server credentials not configured",
+                "environment": "back4app"
+            }
         
-        return {
-            "status": "online",
-            "database": "Parse Server",
-            "counts": {
-                "questions": question_count,
-                "questionnaires": questionnaire_count,
-                "responses": response_count
-            },
-            "version": "1.0.0",
-            "environment": "back4app"
-        }
+        # Tentar fazer uma requisição simples ao Parse Server
+        test_url = f"{PARSE_SERVER_URL}/classes/Question"
+        params = {"limit": 1}
+        
+        response = requests.get(test_url, headers=PARSE_HEADERS, params=params)
+        
+        if response.status_code == 200:
+            # Contar itens em cada coleção
+            questions_response = requests.get(f"{PARSE_SERVER_URL}/classes/Question", headers=PARSE_HEADERS, params={"count": 1, "limit": 0})
+            questionnaires_response = requests.get(f"{PARSE_SERVER_URL}/classes/Questionnaire", headers=PARSE_HEADERS, params={"count": 1, "limit": 0})
+            responses_response = requests.get(f"{PARSE_SERVER_URL}/classes/Response", headers=PARSE_HEADERS, params={"count": 1, "limit": 0})
+            
+            return {
+                "status": "online",
+                "database": "Parse Server",
+                "counts": {
+                    "questions": questions_response.json().get("count", 0) if questions_response.status_code == 200 else "error",
+                    "questionnaires": questionnaires_response.json().get("count", 0) if questionnaires_response.status_code == 200 else "error",
+                    "responses": responses_response.json().get("count", 0) if responses_response.status_code == 200 else "error"
+                },
+                "version": "1.0.0",
+                "environment": "back4app",
+                "parse_app_id": PARSE_APP_ID[:4] + "..." if PARSE_APP_ID else "not set"
+            }
+        else:
+            return {
+                "status": "error",
+                "message": f"Parse Server connection failed with status {response.status_code}",
+                "error": response.text[:100] + "..." if len(response.text) > 100 else response.text
+            }
     except Exception as e:
         return {
             "status": "error",
@@ -426,21 +536,28 @@ def get_questions():
 @app.get("/api/questions/{question_id}", response_model=Question)
 def get_question(question_id: int):
     try:
-        pq = ParseQuestion.Query.get(question_id=question_id)
-        
-        # Converter para o formato esperado
-        question = {
-            "id": pq.question_id,
-            "number": pq.number,
-            "text": pq.text,
-            "type": pq.type,
-            "category": pq.category,
-            "options": json.loads(pq.options)
+        query_url = f"{PARSE_SERVER_URL}/classes/Question"
+        params = {
+            "where": json.dumps({"questionId": question_id})
         }
         
-        return question
-    except QueryResourceDoesNotExist:
-        raise HTTPException(status_code=404, detail="Questão não encontrada")
+        response = requests.get(query_url, headers=PARSE_HEADERS, params=params)
+        
+        if response.status_code == 200 and len(response.json().get("results", [])) > 0:
+            item = response.json()["results"][0]
+            
+            question = {
+                "id": item.get("questionId"),
+                "number": item.get("number"),
+                "text": item.get("text"),
+                "type": item.get("type"),
+                "category": item.get("category"),
+                "options": item.get("options", [])
+            }
+            
+            return question
+        else:
+            raise HTTPException(status_code=404, detail="Questão não encontrada")
     except Exception as e:
         print(f"Erro ao buscar questão: {e}")
         raise HTTPException(status_code=500, detail="Erro ao buscar questão")
@@ -468,35 +585,42 @@ def get_questionnaires():
 @app.get("/api/questionnaires/{questionnaire_id}", response_model=Questionnaire)
 def get_questionnaire(questionnaire_id: int):
     try:
-        pq = ParseQuestionnaire.Query.get(questionnaire_id=questionnaire_id)
-        
-        # Converter para o formato esperado
-        questionnaire = {
-            "id": pq.questionnaire_id,
-            "title": pq.title,
-            "description": pq.description,
-            "question_ids": json.loads(pq.question_ids),
-            "created_at": pq.created_at.isoformat() if hasattr(pq, 'created_at') else datetime.now().isoformat()
+        query_url = f"{PARSE_SERVER_URL}/classes/Questionnaire"
+        params = {
+            "where": json.dumps({"questionnaireId": questionnaire_id})
         }
         
-        # Expandir as questões
-        questions = load_questions()
-        questions_dict = {q["id"]: q for q in questions}
+        response = requests.get(query_url, headers=PARSE_HEADERS, params=params)
         
-        expanded_questions = []
-        for qid in questionnaire.get("question_ids", []):
-            if qid in questions_dict:
-                expanded_questions.append(questions_dict[qid])
-        
-        questionnaire["questions"] = expanded_questions
-        
-        # Remover a lista de IDs após expandir
-        if "question_ids" in questionnaire:
-            del questionnaire["question_ids"]
-        
-        return questionnaire
-    except QueryResourceDoesNotExist:
-        raise HTTPException(status_code=404, detail="Questionário não encontrado")
+        if response.status_code == 200 and len(response.json().get("results", [])) > 0:
+            item = response.json()["results"][0]
+            
+            questionnaire = {
+                "id": item.get("questionnaireId"),
+                "title": item.get("title"),
+                "description": item.get("description"),
+                "question_ids": item.get("questionIds", []),
+                "created_at": item.get("createdAt", datetime.now().isoformat())
+            }
+            
+            # Expandir as questões
+            questions = load_questions()
+            questions_dict = {q["id"]: q for q in questions}
+            
+            expanded_questions = []
+            for qid in questionnaire.get("question_ids", []):
+                if qid in questions_dict:
+                    expanded_questions.append(questions_dict[qid])
+            
+            questionnaire["questions"] = expanded_questions
+            
+            # Remover a lista de IDs após expandir
+            if "question_ids" in questionnaire:
+                del questionnaire["question_ids"]
+            
+            return questionnaire
+        else:
+            raise HTTPException(status_code=404, detail="Questionário não encontrado")
     except Exception as e:
         print(f"Erro ao buscar questionário: {e}")
         raise HTTPException(status_code=500, detail="Erro ao buscar questionário")
@@ -507,8 +631,18 @@ def create_questionnaire(questionnaire: QuestionnaireCreate):
         # Gerar ID para o novo questionário
         try:
             # Buscar o maior ID existente
-            last_questionnaire = list(ParseQuestionnaire.Query.all().order_by("-questionnaire_id").limit(1))
-            new_id = 1 if not last_questionnaire else last_questionnaire[0].questionnaire_id + 1
+            query_url = f"{PARSE_SERVER_URL}/classes/Questionnaire"
+            params = {
+                "order": "-questionnaireId",
+                "limit": 1
+            }
+            
+            response = requests.get(query_url, headers=PARSE_HEADERS, params=params)
+            
+            if response.status_code == 200 and len(response.json().get("results", [])) > 0:
+                new_id = response.json()["results"][0].get("questionnaireId", 0) + 1
+            else:
+                new_id = 1
         except Exception:
             new_id = 1
         
@@ -531,14 +665,7 @@ def create_questionnaire(questionnaire: QuestionnaireCreate):
         }
         
         # Salvar no Parse Server
-        pq = ParseQuestionnaire(
-            questionnaire_id=new_id,
-            title=questionnaire.title,
-            description=questionnaire.description,
-            question_ids=json.dumps(valid_question_ids),
-            created_at=datetime.now()
-        )
-        pq.save()
+        save_questionnaire(new_questionnaire)
         
         # Expandir as questões para o retorno
         expanded_questions = [questions_dict[qid] for qid in valid_question_ids]
