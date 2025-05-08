@@ -1,15 +1,33 @@
-from fastapi import FastAPI, HTTPException, Request
+# Adicionando importações para MongoDB
+from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import json
 import os
 import traceback
 from datetime import datetime
+from pymongo import MongoClient
+import pymongo
 
 app = FastAPI(title="Sistema de Questionários ENADE")
+
+# Configurações para o MongoDB do Back4App
+MONGODB_URI = os.environ.get("MONGODB_URI", "mongodb://localhost:27017/")
+DB_NAME = os.environ.get("DB_NAME", "enade_app")
+
+# Função para criar conexão com o MongoDB
+def get_db_connection():
+    client = MongoClient(MONGODB_URI)
+    db = client[DB_NAME]
+    return db, client
+
+# Função para fechar a conexão
+def close_db_connection(client):
+    if client:
+        client.close()
 
 # Middleware para tratar exceções e imprimir erros detalhados
 @app.middleware("http")
@@ -59,71 +77,37 @@ class Questionnaire(QuestionnaireBase):
     questions: List[Question]
     created_at: str
 
-# Diretório para armazenar dados
+# Diretório para armazenar dados - mantemos para compatibilidade e migração
 DATA_DIR = "data"
 QUESTIONS_FILE = os.path.join(DATA_DIR, "questions.json")
 QUESTIONNAIRES_FILE = os.path.join(DATA_DIR, "questionnaires.json")
+RESPONSES_FILE = os.path.join(DATA_DIR, "responses.json")
 
-# Garantir que os diretórios existem
-os.makedirs(DATA_DIR, exist_ok=True)
-os.makedirs("static", exist_ok=True)
-
-# Verificar se existe pelo menos um arquivo HTML na pasta static
-index_path = os.path.join("static", "index.html")
-if not os.path.exists(index_path):
-    print("AVISO: index.html não encontrado na pasta static.")
-
-# Modifique esta parte no seu código
-# Garantir que os diretórios existem
+# Garantir que os diretórios existem para migração
 try:
     os.makedirs(DATA_DIR, exist_ok=True)
     os.makedirs("static", exist_ok=True)
 except Exception as e:
     print(f"AVISO: Não foi possível criar diretórios: {e}")
 
-# E substitua as chamadas de acesso a arquivos por versões seguras
-def load_questions():
+# Inicializar o banco de dados MongoDB
+def init_db():
     """
-    Carrega questões, criando o arquivo se não existir.
-    Preserva questões existentes.
-    
-    Returns:
-        list: Lista de questões
+    Inicializa o MongoDB, criando índices necessários
     """
     try:
-        if not os.path.exists(QUESTIONS_FILE):
-            # Se o arquivo não existe, criar com questões de exemplo
-            questions = extract_questions_from_pdf()
-            try:
-                with open(QUESTIONS_FILE, "w", encoding="utf-8") as f:
-                    json.dump(questions, f, ensure_ascii=False, indent=2)
-            except Exception as e:
-                print(f"Erro ao salvar questões: {e}")
-                return questions
-            return questions
+        db, client = get_db_connection()
         
-        # Ler questões existentes
-        with open(QUESTIONS_FILE, "r", encoding="utf-8") as f:
-            existing_questions = json.load(f)
+        # Criar índices para coleções
+        db.questions.create_index([("id", pymongo.ASCENDING)], unique=True)
+        db.questionnaires.create_index([("id", pymongo.ASCENDING)], unique=True)
+        db.questionnaires.create_index("title")
         
-        return existing_questions
+        print("Banco de dados MongoDB inicializado com sucesso")
+        
+        close_db_connection(client)
     except Exception as e:
-        print(f"Erro ao carregar questões: {e}")
-        # Retornar dados vazios em caso de erro
-        return []
-# Função para carregar questionários
-def load_questionnaires():
-    if not os.path.exists(QUESTIONNAIRES_FILE):
-        with open(QUESTIONNAIRES_FILE, "w", encoding="utf-8") as f:
-            json.dump([], f)
-    
-    with open(QUESTIONNAIRES_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-# Função para salvar questionários
-def save_questionnaires(questionnaires):
-    with open(QUESTIONNAIRES_FILE, "w", encoding="utf-8") as f:
-        json.dump(questionnaires, f, ensure_ascii=False, indent=2)
+        print(f"Erro ao inicializar o banco de dados MongoDB: {e}")
 
 # Função para extrair questões do PDF do ENADE
 def extract_questions_from_pdf(existing_questions=None):
@@ -222,68 +206,241 @@ def extract_questions_from_pdf(existing_questions=None):
     
     return questions
 
+# Função para migrar dados JSON para MongoDB
+def migrate_data_from_json():
+    """
+    Migra dados de arquivos JSON para o MongoDB
+    """
+    print("Iniciando migração de dados JSON para MongoDB...")
+    
+    try:
+        db, client = get_db_connection()
+        
+        # Verificar se já existem dados no banco
+        if db.questions.count_documents({}) > 0 or db.questionnaires.count_documents({}) > 0:
+            print("Dados já existem no banco, pulando migração")
+            close_db_connection(client)
+            return
+        
+        # Migrar questões
+        if os.path.exists(QUESTIONS_FILE):
+            try:
+                with open(QUESTIONS_FILE, "r", encoding="utf-8") as f:
+                    questions = json.load(f)
+                
+                if questions:
+                    for question in questions:
+                        db.questions.replace_one({"id": question["id"]}, question, upsert=True)
+                    print(f"Migração de {len(questions)} questões concluída")
+            except Exception as e:
+                print(f"Erro ao migrar questões: {e}")
+        
+        # Migrar questionários
+        if os.path.exists(QUESTIONNAIRES_FILE):
+            try:
+                with open(QUESTIONNAIRES_FILE, "r", encoding="utf-8") as f:
+                    questionnaires = json.load(f)
+                
+                if questionnaires:
+                    for questionnaire in questionnaires:
+                        # Garantir que created_at seja uma string
+                        if "created_at" in questionnaire and not isinstance(questionnaire["created_at"], str):
+                            questionnaire["created_at"] = questionnaire["created_at"].isoformat()
+                        
+                        db.questionnaires.replace_one({"id": questionnaire["id"]}, questionnaire, upsert=True)
+                    print(f"Migração de {len(questionnaires)} questionários concluída")
+            except Exception as e:
+                print(f"Erro ao migrar questionários: {e}")
+        
+        # Migrar respostas
+        if os.path.exists(RESPONSES_FILE):
+            try:
+                with open(RESPONSES_FILE, "r", encoding="utf-8") as f:
+                    responses = json.load(f)
+                
+                if responses:
+                    db.responses.insert_many(responses)
+                    print(f"Migração de {len(responses)} respostas concluída")
+            except Exception as e:
+                print(f"Erro ao migrar respostas: {e}")
+        
+        close_db_connection(client)
+        print("Migração de dados JSON para MongoDB concluída")
+    except Exception as e:
+        print(f"Erro durante a migração de dados: {e}")
+
+# Funções CRUD substituídas para usar MongoDB
+
 def load_questions():
     """
-    Carrega questões, criando o arquivo se não existir.
-    Preserva questões existentes.
+    Carrega questões do MongoDB.
+    Se não existirem, cria questões de exemplo.
     
     Returns:
         list: Lista de questões
     """
-    if not os.path.exists(QUESTIONS_FILE):
-        # Se o arquivo não existe, criar com questões de exemplo
-        questions = extract_questions_from_pdf()
-        with open(QUESTIONS_FILE, "w", encoding="utf-8") as f:
-            json.dump(questions, f, ensure_ascii=False, indent=2)
+    try:
+        db, client = get_db_connection()
+        # Buscar todas as questões, ordenadas por número
+        questions = list(db.questions.find({}, {'_id': 0}).sort("number", 1))
+        close_db_connection(client)
+        
+        # Se não houver questões, criar questões de exemplo
+        if not questions:
+            print("Nenhuma questão encontrada. Criando questões de exemplo...")
+            questions = extract_questions_from_pdf()
+            save_questions(questions)
+        
         return questions
-    
-    # Ler questões existentes
-    with open(QUESTIONS_FILE, "r", encoding="utf-8") as f:
-        existing_questions = json.load(f)
-    
-    # Verificar se precisa adicionar mais questões
-    if len(existing_questions) < 20:
-        # Adicionar questões de exemplo mantendo as existentes
-        updated_questions = extract_questions_from_pdf(existing_questions)
-        
-        # Salvar questões atualizadas
-        with open(QUESTIONS_FILE, "w", encoding="utf-8") as f:
-            json.dump(updated_questions, f, ensure_ascii=False, indent=2)
-        
-        return updated_questions
-    
-    return existing_questions
+    except Exception as e:
+        print(f"Erro ao carregar questões: {e}")
+        # Em caso de erro, criar questões de exemplo
+        return extract_questions_from_pdf()
 
-def get_questions_json():
+def save_questions(questions):
     """
-    Obtém questões em formato JSON.
-    Preserva questões existentes.
-    
-    Returns:
-        list: Lista de questões
+    Salva múltiplas questões no MongoDB
     """
-    # Carregar ou criar o arquivo de questões
-    if not os.path.exists(QUESTIONS_FILE):
-        questions = extract_questions_from_pdf()
-        with open(QUESTIONS_FILE, "w", encoding="utf-8") as f:
-            json.dump(questions, f, ensure_ascii=False, indent=2)
-        return questions
-    
-    # Ler questões existentes
-    with open(QUESTIONS_FILE, "r", encoding="utf-8") as f:
-        existing_questions = json.load(f)
-    
-    # Verificar se precisa adicionar mais questões
-    if len(existing_questions) < 20:
-        updated_questions = extract_questions_from_pdf(existing_questions)
+    try:
+        db, client = get_db_connection()
         
-        # Salvar questões atualizadas
-        with open(QUESTIONS_FILE, "w", encoding="utf-8") as f:
-            json.dump(updated_questions, f, ensure_ascii=False, indent=2)
+        for question in questions:
+            # Inserir ou atualizar questão
+            db.questions.replace_one({"id": question["id"]}, question, upsert=True)
         
-        return updated_questions
+        close_db_connection(client)
+        return True
+    except Exception as e:
+        print(f"Erro ao salvar questões: {e}")
+        return False
+
+def load_questionnaires():
+    """
+    Carrega todos os questionários do MongoDB
+    """
+    try:
+        db, client = get_db_connection()
+        # Excluir o campo _id na resposta
+        questionnaires = list(db.questionnaires.find({}, {'_id': 0}))
+        close_db_connection(client)
+        return questionnaires
+    except Exception as e:
+        print(f"Erro ao carregar questionários: {e}")
+        return []
+
+def save_questionnaires(questionnaires):
+    """
+    Salva a lista completa de questionários no MongoDB
+    (Para compatibilidade com o código original)
+    """
+    try:
+        db, client = get_db_connection()
+        
+        # Limpar coleção atual
+        db.questionnaires.delete_many({})
+        
+        # Inserir todos os questionários
+        if questionnaires:
+            db.questionnaires.insert_many(questionnaires)
+        
+        close_db_connection(client)
+        return True
+    except Exception as e:
+        print(f"Erro ao salvar questionários: {e}")
+        return False
+
+def save_questionnaire(questionnaire_data):
+    """
+    Salva um questionário individual no MongoDB
+    """
+    try:
+        db, client = get_db_connection()
+        
+        # Inserir ou atualizar questionário
+        result = db.questionnaires.replace_one(
+            {"id": questionnaire_data["id"]}, 
+            questionnaire_data, 
+            upsert=True
+        )
+        
+        close_db_connection(client)
+        return True
+    except Exception as e:
+        print(f"Erro ao salvar questionário: {e}")
+        return False
+
+def load_responses():
+    """
+    Carrega todas as respostas do MongoDB
+    """
+    try:
+        db, client = get_db_connection()
+        
+        # Excluir o campo _id na resposta
+        responses = list(db.responses.find({}, {'_id': 0}).sort("submissionDate", -1))
+        
+        close_db_connection(client)
+        return responses
+    except Exception as e:
+        print(f"Erro ao carregar respostas: {e}")
+        return []
+
+def save_response(response_data):
+    """
+    Salva uma resposta de questionário no MongoDB
+    """
+    try:
+        db, client = get_db_connection()
+        
+        # Garantir que submissionDate seja uma string
+        if "submissionDate" in response_data and not isinstance(response_data["submissionDate"], str):
+            response_data["submissionDate"] = response_data["submissionDate"].isoformat()
+        
+        # Inserir a resposta
+        db.responses.insert_one(response_data)
+        
+        close_db_connection(client)
+        return True
+    except Exception as e:
+        print(f"Erro ao salvar resposta: {e}")
+        return False
+
+# Eventos para gerenciar o banco de dados
+@app.on_event("startup")
+async def startup_db_client():
+    """
+    Inicializa o banco de dados na inicialização da aplicação.
+    """
+    print("Inicializando banco de dados MongoDB...")
+    init_db()
     
-    return existing_questions
+    # Verificar se já existem dados no banco
+    db, client = get_db_connection()
+    
+    question_count = db.questions.count_documents({})
+    questionnaire_count = db.questionnaires.count_documents({})
+    response_count = db.responses.count_documents({})
+    
+    print(f"Banco de dados contém: {question_count} questões, {questionnaire_count} questionários, {response_count} respostas")
+    
+    # Se não houver dados, migrar dos arquivos JSON (se existirem)
+    if question_count == 0 and questionnaire_count == 0 and response_count == 0:
+        print("Banco de dados vazio, verificando arquivos JSON para migração...")
+        close_db_connection(client)
+        migrate_data_from_json()
+    else:
+        close_db_connection(client)
+    
+    print("Inicialização do banco de dados concluída")
+
+@app.on_event("shutdown")
+async def shutdown_db_client():
+    """
+    Finaliza conexões com o banco de dados quando a aplicação é encerrada.
+    """
+    print("Finalizando conexões com o banco de dados...")
+    # Não é necessário fazer nada específico aqui, pois fechamos as conexões após cada operação
+    print("Conexões com o banco de dados finalizadas")
 
 # Montar diretório estático - deve vir ANTES das rotas da API para evitar conflitos
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -297,19 +454,45 @@ def read_root():
 async def test_api():
     return {"status": "success", "message": "API está online"}
 
+# Endpoint de status específico para o Back4App
+@app.get("/api/status")
+def get_status():
+    """
+    Endpoint de status para verificar se a API está funcionando
+    """
+    try:
+        # Verificar conexão com o MongoDB
+        db, client = get_db_connection()
+        db_status = "conectado"
+        
+        # Contar itens em cada coleção
+        question_count = db.questions.count_documents({})
+        questionnaire_count = db.questionnaires.count_documents({})
+        response_count = db.responses.count_documents({})
+        
+        close_db_connection(client)
+        
+        return {
+            "status": "online",
+            "database": db_status,
+            "counts": {
+                "questions": question_count,
+                "questionnaires": questionnaire_count,
+                "responses": response_count
+            },
+            "version": "1.0.0",
+            "environment": "back4app"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
 # Rota para servir o arquivo de questões em JSON diretamente
 @app.get("/questions.json")
 def get_questions_json():
-    # Carregar ou criar o arquivo de questões
-    if not os.path.exists(QUESTIONS_FILE):
-        questions = extract_questions_from_pdf()
-        with open(QUESTIONS_FILE, "w", encoding="utf-8") as f:
-            json.dump(questions, f, ensure_ascii=False, indent=2)
-        return questions
-    
-    # Ler o arquivo existente
-    with open(QUESTIONS_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+    return load_questions()
 
 @app.get("/api/questions", response_model=List[Question])
 def get_questions():
@@ -317,10 +500,16 @@ def get_questions():
 
 @app.get("/api/questions/{question_id}", response_model=Question)
 def get_question(question_id: int):
-    questions = load_questions()
-    for q in questions:
-        if q["id"] == question_id:
-            return q
+    try:
+        db, client = get_db_connection()
+        question = db.questions.find_one({"id": question_id}, {'_id': 0})
+        close_db_connection(client)
+        
+        if question:
+            return question
+    except Exception as e:
+        print(f"Erro ao buscar questão: {e}")
+    
     raise HTTPException(status_code=404, detail="Questão não encontrada")
 
 @app.get("/api/questionnaires", response_model=List[Questionnaire])
@@ -345,88 +534,97 @@ def get_questionnaires():
 
 @app.get("/api/questionnaires/{questionnaire_id}", response_model=Questionnaire)
 def get_questionnaire(questionnaire_id: int):
-    questionnaires = load_questionnaires()
-    
-    # Encontrar o questionário pelo ID
-    questionnaire = None
-    for q in questionnaires:
-        if q["id"] == questionnaire_id:
-            questionnaire = q
-            break
-    
-    if not questionnaire:
-        raise HTTPException(status_code=404, detail="Questionário não encontrado")
-    
-    # Expandir as questões
-    questions = load_questions()
-    questions_dict = {q["id"]: q for q in questions}
-    
-    expanded_questions = []
-    for qid in questionnaire.get("question_ids", []):
-        if qid in questions_dict:
-            expanded_questions.append(questions_dict[qid])
-    
-    questionnaire["questions"] = expanded_questions
-    # Remover a lista de IDs após expandir
-    if "question_ids" in questionnaire:
-        del questionnaire["question_ids"]
-    
-    return questionnaire
+    try:
+        db, client = get_db_connection()
+        questionnaire = db.questionnaires.find_one({"id": questionnaire_id}, {'_id': 0})
+        close_db_connection(client)
+        
+        if not questionnaire:
+            raise HTTPException(status_code=404, detail="Questionário não encontrado")
+        
+        # Expandir as questões
+        questions = load_questions()
+        questions_dict = {q["id"]: q for q in questions}
+        
+        expanded_questions = []
+        for qid in questionnaire.get("question_ids", []):
+            if qid in questions_dict:
+                expanded_questions.append(questions_dict[qid])
+        
+        questionnaire["questions"] = expanded_questions
+        # Remover a lista de IDs após expandir
+        if "question_ids" in questionnaire:
+            del questionnaire["question_ids"]
+        
+        return questionnaire
+    except Exception as e:
+        print(f"Erro ao buscar questionário: {e}")
+        raise HTTPException(status_code=500, detail="Erro ao buscar questionário")
 
 @app.post("/api/questionnaires", response_model=Questionnaire)
 def create_questionnaire(questionnaire: QuestionnaireCreate):
-    questionnaires = load_questionnaires()
-    
-    # Gerar ID para o novo questionário
-    new_id = 1
-    if questionnaires:
-        new_id = max(q["id"] for q in questionnaires) + 1
-    
-    # Verificar se as questões existem
-    questions = load_questions()
-    questions_dict = {q["id"]: q for q in questions}
-    
-    valid_question_ids = []
-    for qid in questionnaire.questions:
-        if qid in questions_dict:
-            valid_question_ids.append(qid)
-    
-    # Criar o novo questionário
-    new_questionnaire = {
-        "id": new_id,
-        "title": questionnaire.title,
-        "description": questionnaire.description,
-        "question_ids": valid_question_ids,
-        "created_at": datetime.now().isoformat()
-    }
-    
-    questionnaires.append(new_questionnaire)
-    save_questionnaires(questionnaires)
-    
-    # Expandir as questões para o retorno
-    expanded_questions = [questions_dict[qid] for qid in valid_question_ids]
-    
-    return {
-        "id": new_id,
-        "title": questionnaire.title,
-        "description": questionnaire.description,
-        "questions": expanded_questions,
-        "created_at": new_questionnaire["created_at"]
-    }
+    try:
+        db, client = get_db_connection()
+        
+        # Gerar ID para o novo questionário
+        last_questionnaire = db.questionnaires.find_one(sort=[("id", -1)])
+        new_id = 1 if not last_questionnaire else last_questionnaire["id"] + 1
+        
+        # Verificar se as questões existem
+        questions = load_questions()
+        questions_dict = {q["id"]: q for q in questions}
+        
+        valid_question_ids = []
+        for qid in questionnaire.questions:
+            if qid in questions_dict:
+                valid_question_ids.append(qid)
+        
+        # Criar o novo questionário
+        new_questionnaire = {
+            "id": new_id,
+            "title": questionnaire.title,
+            "description": questionnaire.description,
+            "question_ids": valid_question_ids,
+            "created_at": datetime.now().isoformat()
+        }
+        
+        # Salvar no MongoDB
+        db.questionnaires.insert_one(new_questionnaire)
+        close_db_connection(client)
+        
+        # Expandir as questões para o retorno
+        expanded_questions = [questions_dict[qid] for qid in valid_question_ids]
+        
+        return {
+            "id": new_id,
+            "title": questionnaire.title,
+            "description": questionnaire.description,
+            "questions": expanded_questions,
+            "created_at": new_questionnaire["created_at"]
+        }
+    except Exception as e:
+        print(f"Erro ao criar questionário: {e}")
+        raise HTTPException(status_code=500, detail="Erro ao criar questionário")
 
 @app.delete("/api/questionnaires/{questionnaire_id}", response_model=dict)
 def delete_questionnaire(questionnaire_id: int):
-    questionnaires = load_questionnaires()
-    
-    # Filtrar o questionário a ser removido
-    updated_questionnaires = [q for q in questionnaires if q["id"] != questionnaire_id]
-    
-    if len(updated_questionnaires) == len(questionnaires):
-        raise HTTPException(status_code=404, detail="Questionário não encontrado")
-    
-    save_questionnaires(updated_questionnaires)
-    
-    return {"message": "Questionário removido com sucesso"}
+    try:
+        db, client = get_db_connection()
+        
+        # Verificar se o questionário existe
+        questionnaire = db.questionnaires.find_one({"id": questionnaire_id})
+        if not questionnaire:
+            close_db_connection(client)
+            raise HTTPException(status_code=404, detail="Questionário não encontrado")
+        
+        # Excluir o questionário
+        db.questionnaires.delete_one({"id": questionnaire_id})
+        close_db_connection(client)
+        
+        return {"message": "Questionário removido com sucesso"}
+    except Exception as e:
+        print(f"Erro ao excluir questionário: {e}")
+        raise HTTPException(status_code=500, detail="Erro ao excluir questionário")
 
 # Rota para servir arquivos estáticos específicos
 @app.get("/styles.css")
@@ -471,6 +669,21 @@ async def serve_js():
 def get_all_responses():
     return load_responses()
 
+@app.post("/api/responses")
+async def receive_response(request: Request):
+    try:
+        data = await request.json()
+        success = save_response(data)
+        if not success:
+            raise HTTPException(
+                status_code=500,
+                detail="Erro ao salvar resposta"
+            )
+        return {"message": "Resposta recebida com sucesso!"}
+    except Exception as e:
+        print("Erro ao salvar resposta:", e)
+        raise HTTPException(status_code=400, detail="Erro ao processar os dados.")
+
 # Rota para servir o frontend (SPA)
 @app.get("/{path:path}")
 async def serve_spa(path: str):
@@ -488,59 +701,11 @@ async def serve_index():
     return FileResponse(os.path.join("static", "index.html"))
 
 # ============================
-# RESPOSTAS DOS ALUNOS (BACKEND)
-# ============================
-
-RESPONSES_FILE = os.path.join(DATA_DIR, "responses.json")
-
-def load_responses():
-    if not os.path.exists(RESPONSES_FILE):
-        return []
-    with open(RESPONSES_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-def save_response(new_response):
-    responses = load_responses()
-    responses.append(new_response)
-    with open(RESPONSES_FILE, "w", encoding="utf-8") as f:
-        json.dump(responses, f, ensure_ascii=False, indent=2)
-
-@app.get("/api/responses")
-def get_all_responses():
-    return load_responses()
-
-@app.post("/api/responses")
-async def receive_response(request: Request):
-    try:
-        data = await request.json()
-        save_response(data)
-        return {"message": "Resposta recebida com sucesso!"}
-    except Exception as e:
-        print("Erro ao salvar resposta:", e)
-        raise HTTPException(status_code=400, detail="Erro ao processar os dados.")
-
-
-# ============================
-# ROTA SPA E INICIAL
-# ============================
-
-@app.get("/{path:path}")
-async def serve_spa(path: str):
-    file_path = os.path.join("static", path)
-    if os.path.exists(file_path) and os.path.isfile(file_path):
-        return FileResponse(file_path)
-    return FileResponse(os.path.join("static", "index.html"))
-
-@app.get("/")
-async def serve_index():
-    return FileResponse(os.path.join("static", "index.html"))
-
-# ============================
 # INÍCIO DO SERVIDOR
 # ============================
 
 if __name__ == "__main__":
     import uvicorn
-    # Obter porta do ambiente ou usar 8000 como padrão
+    # Obter porta do ambiente ou usar 8000 como padrão - Back4App usa a variável PORT
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)
