@@ -533,6 +533,78 @@ def get_questions_json():
 def get_questions():
     return load_questions()
 
+@app.get("/api/migrate-questions")
+def migrate_questions_endpoint():
+    try:
+        # Verificar quais questões já existem no Parse Server
+        existing_url = f"{PARSE_SERVER_URL}/classes/Question"
+        params = {"limit": 1000}
+        response = requests.get(existing_url, headers=PARSE_HEADERS, params=params)
+        
+        existing_ids = set()
+        if response.status_code == 200:
+            for item in response.json().get("results", []):
+                existing_ids.add(item.get("questionId"))
+        
+        print(f"Encontradas {len(existing_ids)} questões já existentes no Parse Server")
+        
+        # Carregar todas as questões do arquivo JSON
+        if os.path.exists(QUESTIONS_FILE):
+            with open(QUESTIONS_FILE, "r", encoding="utf-8") as f:
+                all_questions = json.load(f)
+            
+            print(f"Carregadas {len(all_questions)} questões do arquivo JSON")
+            
+            # Identificar questões faltantes
+            missing_questions = [q for q in all_questions if q["id"] not in existing_ids]
+            print(f"Identificadas {len(missing_questions)} questões faltantes")
+            
+            # Migrar cada questão faltante
+            migrated_count = 0
+            for question in missing_questions:
+                try:
+                    # Preparar dados para o Parse Server
+                    question_data = {
+                        "questionId": question["id"],
+                        "number": question["number"],
+                        "text": question["text"],
+                        "type": question["type"],
+                        "category": question["category"],
+                        "options": question["options"]
+                    }
+                    
+                    # Criar a questão no Parse Server
+                    create_url = f"{PARSE_SERVER_URL}/classes/Question"
+                    create_response = requests.post(create_url, headers=PARSE_HEADERS, data=json.dumps(question_data))
+                    
+                    if create_response.status_code == 201:
+                        migrated_count += 1
+                    else:
+                        print(f"Erro ao migrar questão {question['id']}: {create_response.status_code} - {create_response.text}")
+                except Exception as e:
+                    print(f"Erro ao processar questão {question['id']}: {e}")
+            
+            # Retornar resultados
+            return {
+                "status": "success",
+                "total_in_json": len(all_questions),
+                "existing_in_parse": len(existing_ids),
+                "missing_identified": len(missing_questions),
+                "successfully_migrated": migrated_count,
+                "final_total": len(existing_ids) + migrated_count
+            }
+        else:
+            return {
+                "status": "error",
+                "message": f"Arquivo JSON não encontrado: {QUESTIONS_FILE}"
+            }
+    except Exception as e:
+        print(f"Erro na migração: {e}")
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
 @app.get("/api/questions/{question_id}", response_model=Question)
 def get_question(question_id: int):
     try:
