@@ -536,6 +536,13 @@ def get_questions():
 @app.get("/api/migrate-questions")
 def migrate_questions_endpoint():
     try:
+        # Definir o caminho do arquivo JSON
+        DATA_DIR = "data"
+        QUESTIONS_FILE = os.path.join(DATA_DIR, "questions.json")
+        
+        # Criar diretório se não existir
+        os.makedirs(DATA_DIR, exist_ok=True)
+        
         # Verificar quais questões já existem no Parse Server
         existing_url = f"{PARSE_SERVER_URL}/classes/Question"
         params = {"limit": 1000}
@@ -594,9 +601,12 @@ def migrate_questions_endpoint():
                 "final_total": len(existing_ids) + migrated_count
             }
         else:
+            # Se o arquivo não existir, verificar se o arquivo foi implantado corretamente
             return {
                 "status": "error",
-                "message": f"Arquivo JSON não encontrado: {QUESTIONS_FILE}"
+                "message": f"Arquivo JSON não encontrado: {QUESTIONS_FILE}",
+                "current_directory": os.getcwd(),
+                "files_in_data_dir": os.listdir(DATA_DIR) if os.path.exists(DATA_DIR) else "data dir not found"
             }
     except Exception as e:
         print(f"Erro na migração: {e}")
@@ -604,7 +614,7 @@ def migrate_questions_endpoint():
             "status": "error",
             "message": str(e)
         }
-
+        
 @app.get("/api/questions/{question_id}", response_model=Question)
 def get_question(question_id: int):
     try:
