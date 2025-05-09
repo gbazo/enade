@@ -14,7 +14,7 @@ app = FastAPI(title="Sistema de Questionários ENADE")
 
 # Configurações do Parse Server
 PARSE_APP_ID = os.environ.get("PARSE_APP_ID", "s7pKPlnBzfYSLKpV2MvxN6ahLQRreBVjRKGmXhaD")
-PARSE_REST_API_KEY = os.environ.get("PARSE_REST_API_KEY", "s7pKPlnBzfYSLKpV2MvxN6ahLQRreBVjRKGmXhaD")
+PARSE_REST_API_KEY = os.environ.get("PARSE_REST_API_KEY", "BsRIEaRzKtWkIdz70UrddtHaFsHJdLkYHszT4O6Y")
 PARSE_SERVER_URL = os.environ.get("PARSE_SERVER_URL", "https://parseapi.back4app.com")
 
 # Headers para requisições ao Parse Server
